@@ -6,6 +6,8 @@ import { AppLayout } from "../components/layout/AppLayout";
 import { DashboardPage } from "../pages/DashboardPage";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
 
+import { ProductsPage } from "../pages/ProductsPage";
+
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { token, isLoading } = useAuth();
 
@@ -51,22 +53,7 @@ export const AppRoutes: React.FC = () => {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
 
-        <Route
-          path="products"
-          element={
-            <PlaceholderPage
-              title="货品主数据管理 (Product Domain)"
-              sprint="Sprint 3"
-              description="货品21列业务档案全字段查询、TanStack Table 50条分页、单表Excel导入向导与行级错误清单导出。"
-              features={[
-                "GET /api/v1/products 多维条件组合筛选与模糊搜索",
-                "单条货品详情与全生命周期变更留痕时间轴",
-                "表单防呆录入与同品牌名称相似度疑似重复提示",
-                "Excel 导入模板生成、预览校验与“非空覆盖、空值保留”保护"
-              ]}
-            />
-          }
-        />
+        <Route path="products" element={<ProductsPage />} />
 
         <Route
           path="mechanisms"
