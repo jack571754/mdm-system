@@ -1,4 +1,5 @@
 import logging
+import json
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from sqlalchemy.orm import Session
@@ -10,6 +11,8 @@ from app.models.product import Product
 from app.models.mechanism import Mechanism, MechanismItem
 from app.models.enum_config import EnumConfig
 from app.models.change_log import ChangeLog
+from app.models.sync import SyncSource, SyncRun, AppConfig, MockOdsProduct
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,6 +48,20 @@ def init_db(db: Session) -> None:
         )
         db.add(operator)
         db.commit()
+
+    # 2.1 Seed Initial OpenAPI User
+    api_user = db.query(User).filter(User.username == "api_client").first()
+    if not api_user:
+        logger.info("Creating default open API user: api_client")
+        api_user = User(
+            username="api_client",
+            password_hash=hash_password("Api@SecretKey2026"),
+            role="api",
+            is_enabled=True,
+        )
+        db.add(api_user)
+        db.commit()
+
 
     # 3. Seed Initial Enum Dictionaries (PRD v1.0 §5.3)
     preset_enums = [
@@ -396,8 +413,107 @@ def init_db(db: Session) -> None:
         ]
         db.add_all(items)
         db.commit()
-        db.commit()
         logger.info("Successfully seeded sample promotion mechanisms and combination items.")
+
+    # 6. Seed Global AppConfig (Authority Priority)
+    prio_cfg = db.query(AppConfig).filter(AppConfig.key == "source_priority").first()
+    if not prio_cfg:
+        logger.info("Creating default source_priority in AppConfig")
+        prio_cfg = AppConfig(
+            key="source_priority",
+            value=json.dumps(["数仓同步", "API推送", "Excel导入", "手工维护"], ensure_ascii=False),
+            description="全系统权威源写入合并优先级顺序",
+            updated_at=now,
+        )
+        db.add(prio_cfg)
+        db.commit()
+
+    # 7. Seed Initial SyncSource
+    src = db.query(SyncSource).filter(SyncSource.name == "企业核心数仓商品底表 (ODS_DW_PRODUCT_V1)").first()
+    if not src:
+        logger.info("Creating default sync source: ODS_DW_PRODUCT_V1")
+        mapping = {
+            "dw_code": "code",
+            "dw_name": "name",
+            "dw_brand": "brand",
+            "dw_price": "retail_price",
+            "dw_spec": "spec",
+            "dw_unit": "base_unit",
+            "dw_category": "product_category",
+            "dw_sale_stage": "sale_stage",
+        }
+        src = SyncSource(
+            domain="product",
+            name="企业核心数仓商品底表 (ODS_DW_PRODUCT_V1)",
+            db_url=None, # internal mock DW
+            fetch_sql="SELECT dw_code, dw_name, dw_brand, dw_price, dw_spec, dw_unit, dw_category, dw_sale_stage FROM mock_ods_products",
+            field_mapping_raw=json.dumps(mapping, ensure_ascii=False),
+            cron_expr="0 2 * * *",
+            is_enabled=True,
+            miss_threshold=3,
+        )
+        db.add(src)
+        db.commit()
+
+    # 8. Seed Initial MockOdsProduct Records
+    mock_count = db.query(MockOdsProduct).count()
+    if mock_count == 0:
+        logger.info("Seeding initial mock external DW product records")
+        mock_records = [
+            MockOdsProduct(
+                dw_code="PRO-PER-001",
+                dw_name="珀莱雅红宝石精华2.0 30ml",
+                dw_brand="珀莱雅",
+                dw_price="339.00", # Price update in DW (329 -> 339)
+                dw_spec="30ml",
+                dw_unit="瓶",
+                dw_category="护肤",
+                dw_sale_stage="在售",
+            ),
+            MockOdsProduct(
+                dw_code="PRO-PER-002",
+                dw_name="珀莱雅双抗精华3.0 30ml",
+                dw_brand="珀莱雅",
+                dw_price="289.00",
+                dw_spec="30ml",
+                dw_unit="瓶",
+                dw_category="护肤",
+                dw_sale_stage="在售",
+            ),
+            MockOdsProduct(
+                dw_code="PRO-PER-004",
+                dw_name="珀莱雅源力面霜2.0 50g",
+                dw_brand="珀莱雅",
+                dw_price="279.00",
+                dw_spec="50g",
+                dw_unit="瓶",
+                dw_category="护肤",
+                dw_sale_stage="在售",
+            ),
+            MockOdsProduct(
+                dw_code="PRO-CT-001",
+                dw_name="彩棠大师三色修容高光盘 17g",
+                dw_brand="彩棠",
+                dw_price="199.00",
+                dw_spec="17g",
+                dw_unit="盒",
+                dw_category="彩妆",
+                dw_sale_stage="在售",
+            ),
+            MockOdsProduct(
+                dw_code="PRO-DW-NEW-001",
+                dw_name="珀莱雅光学美白淡斑精华液 30ml (数仓新品)",
+                dw_brand="珀莱雅",
+                dw_price="368.00",
+                dw_spec="30ml",
+                dw_unit="瓶",
+                dw_category="护肤",
+                dw_sale_stage="新品",
+            ),
+        ]
+        db.add_all(mock_records)
+        db.commit()
+
 
 
 if __name__ == "__main__":

@@ -9,6 +9,8 @@ from app.core.config import settings
 from app.core.database import SessionLocal
 from app.db.init_db import init_db
 from app.api.v1.router import api_v1_router
+from app.api.open.v1.router import open_router
+from app.core.scheduler import start_scheduler, shutdown_scheduler
 
 
 @asynccontextmanager
@@ -19,8 +21,14 @@ async def lifespan(app: FastAPI):
         init_db(db)
     finally:
         db.close()
+
+    # Start background synchronization scheduler
+    start_scheduler()
+
     yield
-    # Shutdown logic (if any)
+
+    # Graceful shutdown of scheduler
+    shutdown_scheduler()
 
 
 app = FastAPI(
@@ -82,3 +90,4 @@ def health_check():
 
 # Mount API Routers
 app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
+app.include_router(open_router, prefix="/api")

@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mdm_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mdm_db
+      POSTGRES_USER: mdm_user
+      POSTGRES_PASSWORD: mdm_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mdm_user -d mdm_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mdm_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://mdm_user:mdm_password@postgres:5432/mdm_db
+      JWT_SECRET: super-secret-jwt-key-replace-in-production-2026
+      INITIAL_ADMIN_USERNAME: admin
+      INITIAL_ADMIN_PASSWORD: Admin@123456
+      CORS_ORIGINS: http://localhost,http://localhost:80,http://localhost:5200
+    ports:
+      - "8090:8090"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mdm_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata:
