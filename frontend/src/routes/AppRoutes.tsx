@@ -7,6 +7,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
 
 import { ProductsPage } from "../pages/ProductsPage";
+import { MechanismsPage } from "../pages/MechanismsPage";
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { token, isLoading } = useAuth();
@@ -55,22 +56,8 @@ export const AppRoutes: React.FC = () => {
 
         <Route path="products" element={<ProductsPage />} />
 
-        <Route
-          path="mechanisms"
-          element={
-            <PlaceholderPage
-              title="促销机制方案管理 (Mechanism Domain)"
-              sprint="Sprint 4"
-              description="促销机制主表与商品明细子表联动管理，支持单表扁平结构 Excel 导入与引用完整性校验。"
-              features={[
-                "单表扁平结构 Excel 导入引擎：多行自动聚合为主机制与多条明细",
-                "机制规则码自动派发：M-{品牌缩写}-{年月YYYYMM}-{4位流水}",
-                "机制生效状态根据起止日期与系统时间动态计算（未开始/生效中/已过期/已停用）",
-                "明细商品编码引用校验：强制校验商品编码在产品库中是否存在且启用"
-              ]}
-            />
-          }
-        />
+        <Route path="mechanisms" element={<MechanismsPage />} />
+
 
         <Route
           path="change-logs"

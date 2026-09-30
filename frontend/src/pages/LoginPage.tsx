@@ -41,45 +41,46 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-blue-950 px-4 py-12 relative overflow-hidden">
-      {/* Background Glows */}
-      <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/3 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 relative selection:bg-primary selection:text-primary-foreground">
+      {/* Subtle background decoration */}
+      <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] [background-size:24px_24px] opacity-60 pointer-events-none" />
 
-      <div className="w-full max-w-md relative z-10">
-        {/* Brand Card Header */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-xl shadow-blue-500/25 mb-3 border border-blue-400/20">
-            <Database className="w-7 h-7 text-white" />
+      <div className="w-full max-w-md relative z-10 space-y-6">
+        {/* Brand Header */}
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
+            <Database className="h-5 w-5" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">主数据管理平台</h1>
-          <p className="text-sm text-slate-400 mt-1">一数一源 ｜ 多渠道入 ｜ 统一供数出口</p>
+          <div className="space-y-1">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">主数据管理平台</h1>
+            <p className="text-xs text-muted-foreground">一数一源 ｜ 多渠道归集 ｜ 统一供数出口</p>
+          </div>
         </div>
 
         {/* shadcn Card Container */}
-        <Card className="bg-slate-900/90 backdrop-blur-xl border-slate-800 shadow-2xl shadow-black/40 text-slate-100">
+        <Card className="border-border shadow-xs bg-card">
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-lg text-white">账号登录</CardTitle>
-            <CardDescription className="text-slate-400 text-xs">
-              输入系统凭据访问统一主数据核心服务
+            <CardTitle className="text-base font-medium">账号登录</CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
+              请输入系统凭据访问主数据核心服务
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="p-3 rounded-lg bg-red-950/50 border border-red-800/60 text-red-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-xs font-medium text-slate-300">
+              <div className="space-y-1.5">
+                <Label htmlFor="username" className="text-xs font-medium text-foreground">
                   账号名称
                 </Label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
                     <User className="w-4 h-4" />
                   </div>
                   <Input
@@ -89,17 +90,17 @@ export const LoginPage: React.FC = () => {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="请输入用户名"
-                    className="pl-9 bg-slate-950/70 border-slate-800 text-slate-100 placeholder-slate-500 focus-visible:ring-blue-500/50"
+                    className="pl-9 h-9 text-xs"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs font-medium text-slate-300">
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-xs font-medium text-foreground">
                   登录密码
                 </Label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
                     <Lock className="w-4 h-4" />
                   </div>
                   <Input
@@ -109,7 +110,7 @@ export const LoginPage: React.FC = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="请输入密码"
-                    className="pl-9 bg-slate-950/70 border-slate-800 text-slate-100 placeholder-slate-500 focus-visible:ring-blue-500/50"
+                    className="pl-9 h-9 text-xs"
                   />
                 </div>
               </div>
@@ -117,48 +118,57 @@ export const LoginPage: React.FC = () => {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-600/30"
+                className="w-full h-9 text-xs font-medium shadow-xs"
               >
                 {loading ? (
                   <span className="inline-block animate-spin mr-2">⏳</span>
                 ) : (
                   <>
-                    <span>安全登录</span>
-                    <ArrowRight className="w-4 h-4 ml-1" />
+                    <span>登录系统</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                   </>
                 )}
               </Button>
             </form>
 
             {/* Quick Demo Credentials */}
-            <div className="pt-4 border-t border-slate-800/80">
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-3">
-                <span className="flex items-center gap-1.5 text-slate-400">
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-                  预置体验账号（快速填入）：
+            <div className="pt-3 border-t border-border">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                <span className="flex items-center gap-1 text-[11px]">
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                  预置体验账号（点击快速填入）：
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleQuickFill("admin")}
-                  className="py-1.5 px-2.5 rounded-lg bg-slate-800/70 hover:bg-slate-800 text-slate-300 border border-slate-700/60 hover:border-blue-500/50 transition-all text-left cursor-pointer"
+                  className="h-auto py-2 px-2.5 flex flex-col items-start justify-center border-border hover:bg-muted text-left"
                 >
-                  <div className="font-semibold text-white">管理员 (Admin)</div>
-                  <div className="text-[10px] text-slate-400">全权管理与审批</div>
-                </button>
-                <button
+                  <span className="font-medium text-foreground text-xs">管理员 (Admin)</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">全权管理与审批</span>
+                </Button>
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleQuickFill("operator")}
-                  className="py-1.5 px-2.5 rounded-lg bg-slate-800/70 hover:bg-slate-800 text-slate-300 border border-slate-700/60 hover:border-blue-500/50 transition-all text-left cursor-pointer"
+                  className="h-auto py-2 px-2.5 flex flex-col items-start justify-center border-border hover:bg-muted text-left"
                 >
-                  <div className="font-semibold text-white">运营 (Operator)</div>
-                  <div className="text-[10px] text-slate-400">货品维护与查询</div>
-                </button>
+                  <span className="font-medium text-foreground text-xs">运营 (Operator)</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">货品维护与查询</span>
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Footer info */}
+        <p className="text-center text-[11px] text-muted-foreground">
+          企业级主数据平台 &bull; 生产环境安全合规运行中
+        </p>
       </div>
     </div>
   );

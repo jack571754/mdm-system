@@ -1,12 +1,13 @@
 import logging
 from decimal import Decimal
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.core.security import hash_password
 from app.models.user import User
 from app.models.product import Product
+from app.models.mechanism import Mechanism, MechanismItem
 from app.models.enum_config import EnumConfig
 from app.models.change_log import ChangeLog
 
@@ -279,6 +280,30 @@ def init_db(db: Session) -> None:
                 pending_delete=False,
                 is_locked=False,
             ),
+            Product(
+                code="PRO-OR-002",
+                name="Off&Relax 温泉修护发膜 150g",
+                brand="Off&Relax",
+                spec="150g",
+                base_unit="支",
+                short_name="OR修护发膜",
+                product_category="洗护",
+                category_sub="护发",
+                retail_price=Decimal("158.00"),
+                nickname="OR发膜",
+                version="1.0版",
+                series="温泉水系列",
+                sample_type="正品",
+                status="正常",
+                carton_spec="24支/箱",
+                sale_stage="在售",
+                needs_maintenance="否",
+                data_source="手工维护",
+                source_updated_at=now,
+                is_enabled=True,
+                pending_delete=False,
+                is_locked=False,
+            ),
         ]
         db.add_all(sample_products)
 
@@ -298,6 +323,82 @@ def init_db(db: Session) -> None:
         db.commit()
         logger.info(f"Successfully seeded {len(sample_products)} sample products.")
 
+    # 5. Seed Realistic Promotion Mechanisms (if empty)
+    existing_mech_count = db.query(Mechanism).count()
+    if existing_mech_count == 0:
+        logger.info("Seeding initial promotion mechanisms...")
+        m1 = Mechanism(
+            code="M-PROYA-202609-0001",
+            name="珀莱雅早C晚A经典护肤套装",
+            kit_type="买赠套装",
+            mechanism_type="大促",
+            source="手工维护",
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 12, 31),
+            mechanism_price=Decimal("499.00"),
+            short_name="早C晚A套组",
+            brand="珀莱雅",
+            creator="admin",
+            data_source="手工维护",
+            source_updated_at=now,
+            is_enabled=True,
+            pending_delete=False,
+            is_locked=False,
+        )
+        m2 = Mechanism(
+            code="M-TIMAGE-202609-0001",
+            name="彩棠大师底妆立体修容组",
+            kit_type="多件组合",
+            mechanism_type="日常",
+            source="手工维护",
+            start_date=date(2026, 9, 15),
+            end_date=date(2026, 11, 30),
+            mechanism_price=Decimal("349.00"),
+            short_name="大师立体底妆套",
+            brand="彩棠",
+            creator="admin",
+            data_source="手工维护",
+            source_updated_at=now,
+            is_enabled=True,
+            pending_delete=False,
+            is_locked=False,
+        )
+        m3 = Mechanism(
+            code="M-OR-202609-0001",
+            name="Off&Relax 温泉洗护奢享礼盒",
+            kit_type="多件组合",
+            mechanism_type="S促",
+            source="手工维护",
+            start_date=date(2026, 10, 1),
+            end_date=date(2026, 10, 31),
+            mechanism_price=Decimal("269.00"),
+            short_name="OR温泉洗护礼盒",
+            brand="Off&Relax",
+            creator="admin",
+            data_source="手工维护",
+            source_updated_at=now,
+            is_enabled=True,
+            pending_delete=False,
+            is_locked=False,
+        )
+        db.add_all([m1, m2, m3])
+        db.flush()
+
+        # Seed items
+        items = [
+            MechanismItem(mechanism_code=m1.code, product_code="PRO-PER-001", product_name="珀莱雅红宝石精华2.0 30ml", product_spec="30ml", retail_price=Decimal("329.00"), quantity=1, item_type="主品"),
+            MechanismItem(mechanism_code=m1.code, product_code="PRO-PER-002", product_name="珀莱雅双抗精华3.0 30ml", product_spec="30ml", retail_price=Decimal("289.00"), quantity=1, item_type="主品"),
+            MechanismItem(mechanism_code=m1.code, product_code="PRO-PER-003", product_name="珀莱雅双抗精华3.0 7.5ml", product_spec="7.5ml", retail_price=Decimal("0.00"), quantity=4, item_type="赠品"),
+            MechanismItem(mechanism_code=m2.code, product_code="PRO-CT-001", product_name="彩棠大师三色修容高光盘 17g", product_spec="17g", retail_price=Decimal("199.00"), quantity=1, item_type="主品"),
+            MechanismItem(mechanism_code=m2.code, product_code="PRO-CT-002", product_name="彩棠润玉无瑕三色遮瑕膏 8.4g", product_spec="8.4g", retail_price=Decimal("169.00"), quantity=1, item_type="主品"),
+            MechanismItem(mechanism_code=m3.code, product_code="PRO-OR-001", product_name="Off&Relax 清爽控油洗发水 260ml", product_spec="260ml", retail_price=Decimal("138.00"), quantity=1, item_type="主品"),
+            MechanismItem(mechanism_code=m3.code, product_code="PRO-OR-002", product_name="Off&Relax 温泉修护发膜 150g", product_spec="150g", retail_price=Decimal("158.00"), quantity=1, item_type="主品"),
+        ]
+        db.add_all(items)
+        db.commit()
+        db.commit()
+        logger.info("Successfully seeded sample promotion mechanisms and combination items.")
+
 
 if __name__ == "__main__":
     db = SessionLocal()
@@ -305,3 +406,4 @@ if __name__ == "__main__":
         init_db(db)
     finally:
         db.close()
+

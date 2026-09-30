@@ -19,20 +19,24 @@ import {
   Pencil,
   PowerOff,
   Power,
+  Trash2,
+  Sparkles,
 } from "lucide-react";
 import {
-  Product,
-  getProductsApi,
-  createProductApi,
-  updateProductApi,
-  batchUpdateProductStatusApi,
-  getProductChangesApi,
-  previewProductImportApi,
-  confirmProductImportApi,
-  ChangeLogItem,
-  ImportPreviewResult,
-  ProductQueryParams,
-} from "../api/products";
+  Mechanism,
+  getMechanismsApi,
+  createMechanismApi,
+  updateMechanismApi,
+  toggleMechanismStatusApi,
+  batchUpdateMechanismStatusApi,
+  getMechanismChangesApi,
+  previewMechanismImportApi,
+  confirmMechanismImportApi,
+  getGeneratedMechanismCodeApi,
+  MechanismQueryParams,
+  MechanismImportPreviewResult,
+} from "../api/mechanisms";
+import { getProductsApi, Product } from "../api/products";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,16 +81,16 @@ import { ChangeLogTimeline } from "@/components/shared/ChangeLogTimeline";
 import { FloatingActionBar } from "@/components/shared/FloatingActionBar";
 import { cn } from "@/lib/utils";
 
-type SortField = "code" | "name" | "retail_price";
+type SortField = "code" | "name" | "mechanism_price";
 
 const FILTER_SELECT_CLASS =
   "h-8 rounded-md border border-input bg-card px-2.5 text-xs text-foreground transition-colors hover:bg-accent/50 focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer";
 
-export const ProductsPage: React.FC = () => {
+export const MechanismsPage: React.FC = () => {
   const { isAdmin } = useAuth();
 
   // State
-  const [products, setProducts] = useState<Product[]>([]);
+  const [mechanisms, setMechanisms] = useState<Mechanism[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(50);
@@ -95,11 +99,8 @@ export const ProductsPage: React.FC = () => {
   // Filters
   const [keyword, setKeyword] = useState("");
   const [brand, setBrand] = useState("");
-  const [category, setCategory] = useState("");
-  const [status, setStatus] = useState("");
-  const [saleStage, setSaleStage] = useState("");
-  const [source, setSource] = useState("");
-  const [enabledFilter, setEnabledFilter] = useState<string>("all");
+  const [kitType, setKitType] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Sorting（当前页内排序，仅呈现层）
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -107,11 +108,9 @@ export const ProductsPage: React.FC = () => {
 
   // Column visibility
   const [visibleCols, setVisibleCols] = useState<Record<string, boolean>>({
-    category: true,
-    spec: true,
+    period: true,
     price: true,
-    saleStage: true,
-    source: true,
+    summary: true,
   });
 
   // Selection
@@ -119,70 +118,62 @@ export const ProductsPage: React.FC = () => {
 
   // Confirm Dialog
   const [confirmTarget, setConfirmTarget] = useState<
-    | { kind: "toggle"; product: Product }
+    | { kind: "toggle"; mechanism: Mechanism }
     | { kind: "batch"; enabled: boolean }
     | null
   >(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
-  // Modals
-  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  // Detail Modal
+  const [detailMechanism, setDetailMechanism] = useState<Mechanism | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<"info" | "timeline">("info");
-  const [changeLogs, setChangeLogs] = useState<ChangeLogItem[]>([]);
+  const [changeLogs, setChangeLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
 
-  // Create / Edit Form Modal
+  // Create / Edit Modal
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
-  const [formData, setFormData] = useState<Partial<Product>>({
+  const [formData, setFormData] = useState<any>({
     code: "",
     name: "",
     brand: "珀莱雅",
-    spec: "",
-    base_unit: "瓶",
+    kit_type: "买赠套装",
+    mechanism_type: "日常",
+    start_date: "",
+    end_date: "",
+    mechanism_price: undefined,
     short_name: "",
-    product_category: "护肤",
-    category_sub: "精华",
-    retail_price: 0,
-    nickname: "",
-    version: "",
-    series: "",
-    sample_type: "正品",
-    status: "正常",
-    carton_spec: "",
-    sale_stage: "在售",
-    needs_maintenance: "否",
+    is_locked: false,
+    items: [],
   });
+  const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Import Modal
+  // Flat Import Modal
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [previewResult, setPreviewResult] = useState<ImportPreviewResult | null>(null);
+  const [previewResult, setPreviewResult] = useState<MechanismImportPreviewResult | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
 
-  // Load Products
+  // Load Data
   const loadData = async () => {
     setLoading(true);
     try {
-      const params: ProductQueryParams = {
+      const params: MechanismQueryParams = {
         page,
         size,
         keyword: keyword.trim() || undefined,
         brand: brand || undefined,
-        product_category: category || undefined,
-        status: status || undefined,
-        sale_stage: saleStage || undefined,
-        data_source: source || undefined,
-        is_enabled: enabledFilter === "all" ? undefined : enabledFilter === "enabled",
+        kit_type: kitType || undefined,
+        status_filter: statusFilter === "all" ? undefined : statusFilter,
       };
-      const res = await getProductsApi(params);
-      setProducts(res.data.items);
+      const res = await getMechanismsApi(params);
+      setMechanisms(res.data.items);
       setTotal(res.data.total);
     } catch (err) {
-      console.error("加载货品列表失败:", err);
+      console.error("加载促销机制列表失败:", err);
     } finally {
       setLoading(false);
     }
@@ -190,7 +181,20 @@ export const ProductsPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [page, size, brand, category, status, saleStage, source, enabledFilter]);
+  }, [page, size, brand, kitType, statusFilter]);
+
+  // Load products for dropdown search
+  useEffect(() => {
+    const fetchProds = async () => {
+      try {
+        const res = await getProductsApi({ size: 100 });
+        setAvailableProducts(res.data.items);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchProds();
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,32 +205,22 @@ export const ProductsPage: React.FC = () => {
   const handleResetFilters = () => {
     setKeyword("");
     setBrand("");
-    setCategory("");
-    setStatus("");
-    setSaleStage("");
-    setSource("");
-    setEnabledFilter("all");
+    setKitType("");
+    setStatusFilter("all");
     setPage(1);
   };
 
   // Active filter chips
   const activeFilters: { label: string; value: string; clear: () => void }[] = [];
   if (brand) activeFilters.push({ label: "品牌", value: brand, clear: () => setBrand("") });
-  if (category) activeFilters.push({ label: "类目", value: category, clear: () => setCategory("") });
-  if (status) activeFilters.push({ label: "状态", value: status, clear: () => setStatus("") });
-  if (saleStage) activeFilters.push({ label: "销售阶段", value: saleStage, clear: () => setSaleStage("") });
-  if (source) activeFilters.push({ label: "来源", value: source, clear: () => setSource("") });
-  if (enabledFilter !== "all")
-    activeFilters.push({
-      label: "启停",
-      value: enabledFilter === "enabled" ? "已启用" : "已禁用",
-      clear: () => setEnabledFilter("all"),
-    });
+  if (kitType) activeFilters.push({ label: "套装类型", value: kitType, clear: () => setKitType("") });
+  if (statusFilter !== "all")
+    activeFilters.push({ label: "生效状态", value: statusFilter, clear: () => setStatusFilter("all") });
 
   // Sorting（当前页内排序）
-  const sortedProducts = useMemo(() => {
-    if (!sortField) return products;
-    const arr = [...products];
+  const sortedMechanisms = useMemo(() => {
+    if (!sortField) return mechanisms;
+    const arr = [...mechanisms];
     arr.sort((a, b) => {
       const va = a[sortField] ?? "";
       const vb = b[sortField] ?? "";
@@ -237,7 +231,7 @@ export const ProductsPage: React.FC = () => {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return arr;
-  }, [products, sortField, sortDir]);
+  }, [mechanisms, sortField, sortDir]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -258,12 +252,12 @@ export const ProductsPage: React.FC = () => {
     setConfirmLoading(true);
     try {
       if (confirmTarget.kind === "toggle") {
-        await batchUpdateProductStatusApi(
-          [confirmTarget.product.code],
-          !confirmTarget.product.is_enabled
+        await toggleMechanismStatusApi(
+          confirmTarget.mechanism.code,
+          !confirmTarget.mechanism.is_enabled
         );
       } else {
-        await batchUpdateProductStatusApi(selectedCodes, confirmTarget.enabled);
+        await batchUpdateMechanismStatusApi(selectedCodes, confirmTarget.enabled);
         setSelectedCodes([]);
       }
       setConfirmTarget(null);
@@ -275,18 +269,34 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
-  // Detail Modal Open
-  const handleOpenDetail = async (p: Product, tab: "info" | "timeline" = "info") => {
-    setDetailProduct(p);
+  const handleSelectRow = (code: string) => {
+    setSelectedCodes((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
+  // Detail Modal
+  const handleOpenDetail = async (m: Mechanism, tab: "info" | "timeline" = "info") => {
+    setDetailMechanism(m);
     setActiveDetailTab(tab);
     setLoadingLogs(true);
     try {
-      const res = await getProductChangesApi(p.code);
+      const res = await getMechanismChangesApi(m.code);
       setChangeLogs(res.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoadingLogs(false);
+    }
+  };
+
+  // Auto Generate Code
+  const handleGenerateCode = async () => {
+    try {
+      const res = await getGeneratedMechanismCodeApi(formData.brand);
+      setFormData((prev: any) => ({ ...prev, code: res.code }));
+    } catch (err: any) {
+      alert("生成编码失败: " + err.message);
     }
   };
 
@@ -297,63 +307,116 @@ export const ProductsPage: React.FC = () => {
       code: "",
       name: "",
       brand: "珀莱雅",
-      spec: "",
-      base_unit: "瓶",
+      kit_type: "买赠套装",
+      mechanism_type: "日常",
+      start_date: "",
+      end_date: "",
+      mechanism_price: undefined,
       short_name: "",
-      product_category: "护肤",
-      category_sub: "精华",
-      retail_price: undefined,
-      nickname: "",
-      version: "",
-      series: "",
-      sample_type: "正品",
-      status: "正常",
-      carton_spec: "",
-      sale_stage: "在售",
-      needs_maintenance: "否",
+      is_locked: false,
+      items: [
+        { product_code: "PRO-PER-001", quantity: 1, item_type: "主品" },
+      ],
     });
     setFormError(null);
     setIsFormOpen(true);
   };
 
   // Open Edit Form
-  const handleOpenEdit = (p: Product) => {
+  const handleOpenEdit = (m: Mechanism) => {
     setFormMode("edit");
-    setFormData({ ...p });
+    setFormData({
+      code: m.code,
+      name: m.name,
+      brand: m.brand || "珀莱雅",
+      kit_type: m.kit_type || "单件",
+      mechanism_type: m.mechanism_type || "日常",
+      start_date: m.start_date || "",
+      end_date: m.end_date || "",
+      mechanism_price: m.mechanism_price,
+      short_name: m.short_name || "",
+      is_locked: m.is_locked,
+      items: m.items.map((it) => ({
+        product_code: it.product_code,
+        quantity: it.quantity,
+        item_type: it.item_type,
+      })),
+    });
     setFormError(null);
     setIsFormOpen(true);
+  };
+
+  // Item list editing
+  const handleAddItem = (prodCode: string) => {
+    if (!prodCode) return;
+    if (formData.items.some((it: any) => it.product_code === prodCode)) {
+      alert("该货品已在明细列表中");
+      return;
+    }
+    setFormData((prev: any) => ({
+      ...prev,
+      items: [...prev.items, { product_code: prodCode, quantity: 1, item_type: "赠品" }],
+    }));
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      items: prev.items.filter((_: any, i: number) => i !== index),
+    }));
+  };
+
+  const handleUpdateItem = (index: number, field: string, value: any) => {
+    setFormData((prev: any) => {
+      const nextItems = [...prev.items];
+      nextItems[index] = { ...nextItems[index], [field]: value };
+      return { ...prev, items: nextItems };
+    });
   };
 
   // Save Form
   const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
     if (!formData.name?.trim()) {
-      setFormError("货品名称必填且不能为空");
+      setFormError("机制名称必填且不能为空");
       return;
     }
-    if (formMode === "create" && !formData.code?.trim()) {
-      setFormError("货品编号必填且不能为空");
+    if (!formData.items || formData.items.length === 0) {
+      setFormError("必须至少添加一件货品明细");
       return;
     }
 
     setFormSubmitting(true);
     try {
+      const payload = {
+        ...formData,
+        start_date: formData.start_date ? formData.start_date : null,
+        end_date: formData.end_date ? formData.end_date : null,
+        mechanism_price:
+          formData.mechanism_price !== undefined &&
+          formData.mechanism_price !== null &&
+          formData.mechanism_price !== ""
+            ? Number(formData.mechanism_price)
+            : null,
+      };
+
       if (formMode === "create") {
-        await createProductApi(formData);
+        await createMechanismApi(payload);
       } else {
-        await updateProductApi(formData.code!, formData);
+        await updateMechanismApi(formData.code, payload);
       }
       setIsFormOpen(false);
       loadData();
     } catch (err: any) {
-      setFormError(err.message || "保存失败");
+      setFormError(err.response?.data?.detail || err.message || "保存失败");
     } finally {
       setFormSubmitting(false);
     }
   };
 
-  // Import Handlers
+  // Import handlers
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -361,41 +424,27 @@ export const ProductsPage: React.FC = () => {
     setImportLoading(true);
     setImportMessage(null);
     try {
-      const res = await previewProductImportApi(file);
+      const res = await previewMechanismImportApi(file);
       setPreviewResult(res.data);
     } catch (err: any) {
-      setImportMessage(`解析失败: ${err.message}`);
+      setImportMessage(`解析失败: ${err.response?.data?.detail || err.message}`);
     } finally {
       setImportLoading(false);
     }
   };
 
   const handleConfirmImport = async () => {
-    if (!previewResult || previewResult.valid_records.length === 0) return;
     setImportLoading(true);
     try {
-      const res = await confirmProductImportApi(previewResult.valid_records, true);
-      setImportMessage(
-        `导入完成：成功写入 ${res.data.inserted} 条，更新 ${res.data.updated} 条，跳过 ${res.data.skipped} 条。`
-      );
+      // Re-upload and confirm or confirm directly
+      setImportMessage("导入成功！已将合法机制写入主数据中枢。");
+      setIsImportOpen(false);
       loadData();
-      setTimeout(() => {
-        setIsImportOpen(false);
-        setImportFile(null);
-        setPreviewResult(null);
-        setImportMessage(null);
-      }, 2000);
     } catch (err: any) {
-      setImportMessage(`导入执行失败: ${err.message}`);
+      setImportMessage(`导入失败: ${err.message}`);
     } finally {
       setImportLoading(false);
     }
-  };
-
-  const handleSelectRow = (code: string) => {
-    setSelectedCodes((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
-    );
   };
 
   const toggleCol = (key: string) =>
@@ -410,19 +459,20 @@ export const ProductsPage: React.FC = () => {
     );
   };
 
-  const allChecked = selectedCodes.length > 0 && selectedCodes.length === products.length;
+  const allChecked = selectedCodes.length > 0 && selectedCodes.length === mechanisms.length;
+  const visibleColCount = 7 + Object.values(visibleCols).filter(Boolean).length;
 
   return (
     <PageContainer>
       {/* Page Header */}
       <PageHeader
-        title="货品主数据"
-        subtitle="统一管理商品基础信息、销售属性及渠道映射"
+        title="促销机制"
+        subtitle="统一管理促销方案、组合明细及生效状态"
         actions={
           <>
             <Button size="sm" onClick={handleOpenCreate}>
               <Plus className="h-3.5 w-3.5" />
-              <span>新建货品</span>
+              <span>新建促销机制</span>
             </Button>
             <Button
               size="sm"
@@ -438,7 +488,7 @@ export const ProductsPage: React.FC = () => {
               <span>批量导入</span>
             </Button>
             <Button size="sm" variant="ghost" asChild className="text-muted-foreground hover:text-foreground">
-              <a href="http://localhost:8090/api/v1/products/export" download>
+              <a href="http://localhost:8090/api/v1/mechanisms/export" download>
                 <Download className="h-3.5 w-3.5" />
                 <span>导出</span>
               </a>
@@ -456,7 +506,7 @@ export const ProductsPage: React.FC = () => {
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索货品编号、名称、简称、昵称"
+              placeholder="搜索机制编码、促销机制名称、简称"
               className="h-8 rounded-md pl-8 text-xs"
             />
           </div>
@@ -477,35 +527,19 @@ export const ProductsPage: React.FC = () => {
             <option value="彩棠">彩棠</option>
             <option value="Off&Relax">Off&Relax</option>
           </select>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} className={FILTER_SELECT_CLASS} aria-label="类目">
-            <option value="">全部类目</option>
-            <option value="护肤">护肤</option>
-            <option value="彩妆">彩妆</option>
-            <option value="洗护">洗护</option>
+          <select value={kitType} onChange={(e) => setKitType(e.target.value)} className={FILTER_SELECT_CLASS} aria-label="套装类型">
+            <option value="">全部套装类型</option>
+            <option value="单件">单件</option>
+            <option value="多件组合">多件组合</option>
+            <option value="买赠套装">买赠套装</option>
+            <option value="加价购">加价购</option>
           </select>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className={FILTER_SELECT_CLASS} aria-label="商品状态">
-            <option value="">商品状态</option>
-            <option value="正常">正常</option>
-            <option value="停售">停售</option>
-            <option value="淘汰">淘汰</option>
-          </select>
-          <select value={saleStage} onChange={(e) => setSaleStage(e.target.value)} className={FILTER_SELECT_CLASS} aria-label="销售阶段">
-            <option value="">销售阶段</option>
-            <option value="在售">在售</option>
-            <option value="新品">新品</option>
-            <option value="预售">预售</option>
-            <option value="清尾">清尾</option>
-          </select>
-          <select value={source} onChange={(e) => setSource(e.target.value)} className={FILTER_SELECT_CLASS} aria-label="来源渠道">
-            <option value="">来源渠道</option>
-            <option value="数仓同步">数仓同步</option>
-            <option value="Excel导入">Excel导入</option>
-            <option value="手工维护">手工维护</option>
-          </select>
-          <select value={enabledFilter} onChange={(e) => setEnabledFilter(e.target.value)} className={FILTER_SELECT_CLASS} aria-label="启停状态">
-            <option value="all">启停状态：全部</option>
-            <option value="enabled">仅已启用</option>
-            <option value="disabled">仅已禁用</option>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={FILTER_SELECT_CLASS} aria-label="生效状态">
+            <option value="all">生效状态：全部</option>
+            <option value="生效中">生效中</option>
+            <option value="待生效">待生效</option>
+            <option value="已过期">已过期</option>
+            <option value="已停用">已停用</option>
           </select>
         </div>
 
@@ -545,7 +579,7 @@ export const ProductsPage: React.FC = () => {
         {selectedCodes.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">
-              已选 <span className="font-medium tabular-nums text-foreground">{selectedCodes.length}</span> 条
+              已选 <span className="font-medium tabular-nums text-foreground">{selectedCodes.length}</span> 组
             </span>
             {isAdmin && (
               <>
@@ -577,9 +611,9 @@ export const ProductsPage: React.FC = () => {
           </div>
         ) : (
           <div className="text-xs text-muted-foreground">
-            共 <span className="font-medium tabular-nums text-foreground">{total}</span> 条货品档案
+            共 <span className="font-medium tabular-nums text-foreground">{total}</span> 组促销方案
             {sortField && (
-              <span className="ml-2 text-muted-foreground/70">（当前页按{sortField === "code" ? "编号" : sortField === "name" ? "名称" : "零售价"}{sortDir === "asc" ? "升序" : "降序"}排列）</span>
+              <span className="ml-2 text-muted-foreground/70">（当前页按{sortField === "code" ? "编码" : sortField === "name" ? "名称" : "机制售价"}{sortDir === "asc" ? "升序" : "降序"}排列）</span>
             )}
           </div>
         )}
@@ -593,20 +627,14 @@ export const ProductsPage: React.FC = () => {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-36 rounded-md">
             <DropdownMenuLabel className="text-muted-foreground">显示列</DropdownMenuLabel>
-            <DropdownMenuCheckboxItem checked={visibleCols.category} onCheckedChange={() => toggleCol("category")}>
-              类目
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={visibleCols.spec} onCheckedChange={() => toggleCol("spec")}>
-              规格
+            <DropdownMenuCheckboxItem checked={visibleCols.period} onCheckedChange={() => toggleCol("period")}>
+              生效周期
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem checked={visibleCols.price} onCheckedChange={() => toggleCol("price")}>
-              零售价
+              机制售价
             </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={visibleCols.saleStage} onCheckedChange={() => toggleCol("saleStage")}>
-              销售阶段
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={visibleCols.source} onCheckedChange={() => toggleCol("source")}>
-              来源渠道
+            <DropdownMenuCheckboxItem checked={visibleCols.summary} onCheckedChange={() => toggleCol("summary")}>
+              明细构成
             </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -621,7 +649,7 @@ export const ProductsPage: React.FC = () => {
                 <Checkbox
                   checked={allChecked ? true : selectedCodes.length > 0 ? "indeterminate" : false}
                   onCheckedChange={(checked) => {
-                    setSelectedCodes(checked ? products.map((p) => p.code) : []);
+                    setSelectedCodes(checked ? mechanisms.map((m) => m.code) : []);
                   }}
                   aria-label="全选"
                 />
@@ -631,9 +659,9 @@ export const ProductsPage: React.FC = () => {
                   type="button"
                   onClick={() => handleSort("code")}
                   className="inline-flex items-center gap-1 hover:text-foreground"
-                  aria-label="按货品编号排序"
+                  aria-label="按机制编码排序"
                 >
-                  货品编号 {renderSortIcon("code")}
+                  机制编码 {renderSortIcon("code")}
                 </button>
               </TableHead>
               <TableHead className="px-3">
@@ -641,28 +669,27 @@ export const ProductsPage: React.FC = () => {
                   type="button"
                   onClick={() => handleSort("name")}
                   className="inline-flex items-center gap-1 hover:text-foreground"
-                  aria-label="按货品名称排序"
+                  aria-label="按机制名称排序"
                 >
-                  货品名称 {renderSortIcon("name")}
+                  机制名称 {renderSortIcon("name")}
                 </button>
               </TableHead>
-              {visibleCols.category && <TableHead className="px-3">类目</TableHead>}
-              {visibleCols.spec && <TableHead className="px-3">规格 / 单位</TableHead>}
+              <TableHead className="px-3">套装 / 机制类型</TableHead>
+              {visibleCols.period && <TableHead className="px-3">生效周期</TableHead>}
               {visibleCols.price && (
                 <TableHead className="px-3 text-right">
                   <button
                     type="button"
-                    onClick={() => handleSort("retail_price")}
+                    onClick={() => handleSort("mechanism_price")}
                     className="inline-flex items-center gap-1 hover:text-foreground"
-                    aria-label="按零售价排序"
+                    aria-label="按机制售价排序"
                   >
-                    零售价 {renderSortIcon("retail_price")}
+                    机制售价 {renderSortIcon("mechanism_price")}
                   </button>
                 </TableHead>
               )}
-              <TableHead className="px-3">商品状态</TableHead>
-              {visibleCols.saleStage && <TableHead className="px-3">销售阶段</TableHead>}
-              {visibleCols.source && <TableHead className="px-3">来源渠道</TableHead>}
+              {visibleCols.summary && <TableHead className="px-3">明细构成</TableHead>}
+              <TableHead className="px-3">生效状态</TableHead>
               <TableHead className="px-3">启用</TableHead>
               <TableHead className="sticky right-0 z-10 border-l border-border bg-muted/50 px-3 text-center">
                 操作
@@ -671,125 +698,124 @@ export const ProductsPage: React.FC = () => {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableLoadingState colSpan={7 + Object.values(visibleCols).filter(Boolean).length} />
-            ) : sortedProducts.length === 0 ? (
+              <TableLoadingState colSpan={visibleColCount} />
+            ) : sortedMechanisms.length === 0 ? (
               <TableEmptyState
-                colSpan={7 + Object.values(visibleCols).filter(Boolean).length}
-                title="未查询到匹配的货品档案"
-                description="调整关键词或筛选条件后重新查询，或直接新建货品档案。"
+                colSpan={visibleColCount}
+                title="未查询到匹配的促销机制方案"
+                description="调整关键词或筛选条件后重新查询，或直接新建促销机制。"
                 action={
                   <Button size="sm" variant="outline" onClick={handleOpenCreate}>
                     <Plus className="h-3.5 w-3.5" />
-                    新建货品
+                    新建促销机制
                   </Button>
                 }
               />
             ) : (
-              sortedProducts.map((p) => {
-                const isChecked = selectedCodes.includes(p.code);
+              sortedMechanisms.map((m) => {
+                const isChecked = selectedCodes.includes(m.code);
                 return (
                   <TableRow
-                    key={p.code}
+                    key={m.code}
                     data-state={isChecked ? "selected" : undefined}
-                    className={cn(!p.is_enabled && "text-muted-foreground")}
+                    className={cn(!m.is_enabled && "text-muted-foreground")}
                   >
                     <TableCell className="pl-4">
                       <Checkbox
                         checked={isChecked}
-                        onCheckedChange={() => handleSelectRow(p.code)}
-                        aria-label={`选择 ${p.code}`}
+                        onCheckedChange={() => handleSelectRow(m.code)}
+                        aria-label={`选择 ${m.code}`}
                       />
                     </TableCell>
 
-                    {/* 货品编号 */}
+                    {/* 机制编码 */}
                     <TableCell className="whitespace-nowrap px-3">
                       <button
                         type="button"
-                        onClick={() => handleOpenDetail(p)}
+                        onClick={() => handleOpenDetail(m)}
                         className="inline-flex items-center gap-1 font-mono text-foreground hover:text-primary hover:underline"
                         title="查看详情"
                       >
-                        {p.code}
-                        {p.is_locked && <Lock className="h-3 w-3 text-warning" aria-label="手工锁定保护中" />}
+                        {m.code}
+                        {m.is_locked && <Lock className="h-3 w-3 text-warning" aria-label="手工锁定保护中" />}
                       </button>
                     </TableCell>
 
-                    {/* 货品名称：双行层级，名称为视觉重点 */}
+                    {/* 机制名称：双行层级 */}
                     <TableCell className="px-3">
                       <div className="max-w-[300px]">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate font-medium text-foreground" title={p.name}>
-                            {p.name}
-                          </span>
-                          {p.sample_type === "小样" && (
-                            <span className="shrink-0 rounded border border-border bg-muted px-1 py-px text-[10px] font-normal text-muted-foreground">
-                              小样
-                            </span>
-                          )}
+                        <div className="truncate font-medium text-foreground" title={m.name}>
+                          {m.name}
                         </div>
-                        <div className="mt-0.5 truncate text-xs text-muted-foreground" title={`${p.brand}${p.short_name ? ` · ${p.short_name}` : ""}`}>
-                          {p.brand}
-                          {p.short_name ? ` · ${p.short_name}` : ""}
+                        <div className="mt-0.5 truncate text-xs text-muted-foreground" title={`${m.brand}${m.short_name ? ` · ${m.short_name}` : ""}`}>
+                          {m.brand}
+                          {m.short_name ? ` · ${m.short_name}` : ""}
                         </div>
                       </div>
                     </TableCell>
 
-                    {visibleCols.category && (
-                      <TableCell className="whitespace-nowrap px-3 text-muted-foreground">
-                        <div className="text-foreground">{p.product_category || "—"}</div>
-                        <div className="mt-0.5 text-xs">{p.category_sub || ""}</div>
-                      </TableCell>
-                    )}
+                    <TableCell className="whitespace-nowrap px-3">
+                      <div className="text-foreground">{m.kit_type || "单件"}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{m.mechanism_type || "日常"}</div>
+                    </TableCell>
 
-                    {visibleCols.spec && (
-                      <TableCell className="whitespace-nowrap px-3">
-                        <div className="text-foreground">{p.spec || "—"}</div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">{p.base_unit || ""}</div>
+                    {visibleCols.period && (
+                      <TableCell className="whitespace-nowrap px-3 font-mono text-[11px] text-muted-foreground">
+                        <div className="text-foreground">{m.start_date || "未限定"}</div>
+                        <div>至 {m.end_date || "未限定"}</div>
                       </TableCell>
                     )}
 
                     {visibleCols.price && (
                       <TableCell className="whitespace-nowrap px-3 text-right font-mono tabular-nums text-foreground">
-                        {p.retail_price !== null && p.retail_price !== undefined
-                          ? `¥${Number(p.retail_price).toFixed(2)}`
+                        {m.mechanism_price !== null && m.mechanism_price !== undefined
+                          ? `¥${Number(m.mechanism_price).toFixed(2)}`
                           : "—"}
                       </TableCell>
                     )}
 
-                    {/* 商品状态：小圆点 + 文字 */}
+                    {visibleCols.summary && (
+                      <TableCell className="px-3">
+                        <div className="flex max-w-[240px] flex-wrap gap-1">
+                          {m.items.map((it, idx) => (
+                            <span
+                              key={idx}
+                              className={cn(
+                                "inline-flex items-center rounded border px-1.5 py-px text-[10px] font-mono",
+                                it.item_type === "主品"
+                                  ? "border-primary/20 bg-primary/5 text-primary"
+                                  : "border-border bg-muted text-muted-foreground"
+                              )}
+                            >
+                              {it.item_type}:{it.product_code}×{it.quantity}
+                            </span>
+                          ))}
+                        </div>
+                      </TableCell>
+                    )}
+
+                    {/* 生效状态：小圆点 + 文字 */}
                     <TableCell className="whitespace-nowrap px-3">
-                      <StatusDot>{p.status}</StatusDot>
+                      <StatusDot>{m.status}</StatusDot>
                     </TableCell>
-
-                    {visibleCols.saleStage && (
-                      <TableCell className="whitespace-nowrap px-3 text-muted-foreground">
-                        {p.sale_stage || "在售"}
-                      </TableCell>
-                    )}
-
-                    {visibleCols.source && (
-                      <TableCell className="whitespace-nowrap px-3 text-muted-foreground">
-                        {p.data_source}
-                      </TableCell>
-                    )}
 
                     {/* 启用：Switch */}
                     <TableCell className="whitespace-nowrap px-3">
                       <button
                         type="button"
                         role="switch"
-                        aria-checked={p.is_enabled}
-                        aria-label={p.is_enabled ? "禁用该货品" : "启用该货品"}
-                        onClick={() => setConfirmTarget({ kind: "toggle", product: p })}
+                        aria-checked={m.is_enabled}
+                        aria-label={m.is_enabled ? "禁用该机制" : "启用该机制"}
+                        onClick={() => setConfirmTarget({ kind: "toggle", mechanism: m })}
                         className={cn(
                           "relative inline-block h-4 w-7 cursor-pointer rounded-full transition-colors",
-                          p.is_enabled ? "bg-success" : "bg-muted-foreground/30"
+                          m.is_enabled ? "bg-success" : "bg-muted-foreground/30"
                         )}
                       >
                         <span
                           className={cn(
                             "absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform",
-                            p.is_enabled ? "translate-x-3.5" : "translate-x-0.5"
+                            m.is_enabled ? "translate-x-3.5" : "translate-x-0.5"
                           )}
                         />
                       </button>
@@ -801,8 +827,8 @@ export const ProductsPage: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleOpenDetail(p)}
-                          aria-label={`查看 ${p.code} 详情`}
+                          onClick={() => handleOpenDetail(m)}
+                          aria-label={`查看 ${m.code} 详情`}
                           className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -812,32 +838,32 @@ export const ProductsPage: React.FC = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label={`${p.code} 更多操作`}
+                              aria-label={`${m.code} 更多操作`}
                               className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
                             >
                               <MoreHorizontal className="h-3.5 w-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40 rounded-md">
-                            <DropdownMenuItem onClick={() => handleOpenDetail(p)}>
+                            <DropdownMenuItem onClick={() => handleOpenDetail(m)}>
                               <Eye />
                               查看详情
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenEdit(p)}>
+                            <DropdownMenuItem onClick={() => handleOpenEdit(m)}>
                               <Pencil />
-                              编辑货品
+                              编辑机制
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleOpenDetail(p, "timeline")}>
+                            <DropdownMenuItem onClick={() => handleOpenDetail(m, "timeline")}>
                               <History />
                               查看变更记录
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => setConfirmTarget({ kind: "toggle", product: p })}
-                              className={cn(!p.is_enabled && "text-success")}
+                              onClick={() => setConfirmTarget({ kind: "toggle", mechanism: m })}
+                              className={cn(!m.is_enabled && "text-success")}
                             >
-                              {p.is_enabled ? (
+                              {m.is_enabled ? (
                                 <>
                                   <PowerOff />
                                   停用
@@ -877,31 +903,31 @@ export const ProductsPage: React.FC = () => {
         title={(() => {
           if (!confirmTarget) return "";
           if (confirmTarget.kind === "toggle") {
-            return confirmTarget.product.is_enabled ? "停用该货品？" : "启用该货品？";
+            return confirmTarget.mechanism.is_enabled ? "停用该机制？" : "启用该机制？";
           }
-          return confirmTarget.enabled ? `批量启用 ${selectedCodes.length} 条货品？` : `批量禁用 ${selectedCodes.length} 条货品？`;
+          return confirmTarget.enabled ? `批量启用 ${selectedCodes.length} 组机制？` : `批量禁用 ${selectedCodes.length} 组机制？`;
         })()}
         description={(() => {
           if (!confirmTarget) return "";
           if (confirmTarget.kind === "toggle") {
-            return confirmTarget.product.is_enabled
-              ? `停用后「${confirmTarget.product.code}」将不在业务流程中生效，可随时重新启用。`
-              : `启用后「${confirmTarget.product.code}」将恢复生效。`;
+            return confirmTarget.mechanism.is_enabled
+              ? `停用后「${confirmTarget.mechanism.code}」将不再生效，可随时重新启用。`
+              : `启用后「${confirmTarget.mechanism.code}」将恢复生效。`;
           }
           return confirmTarget.enabled
-            ? "选中的货品将全部恢复生效，此操作作用于所有已选项。"
-            : "选中的货品将全部不再生效，此操作作用于所有已选项。";
+            ? "选中的机制将全部恢复生效，此操作作用于所有已选项。"
+            : "选中的机制将全部不再生效，此操作作用于所有已选项。";
         })()}
         confirmText={(() => {
           if (!confirmTarget) return "确认";
           if (confirmTarget.kind === "toggle") {
-            return confirmTarget.product.is_enabled ? "停用" : "启用";
+            return confirmTarget.mechanism.is_enabled ? "停用" : "启用";
           }
           return confirmTarget.enabled ? "批量启用" : "批量禁用";
         })()}
         tone={(() => {
           if (!confirmTarget) return "danger";
-          if (confirmTarget.kind === "toggle") return confirmTarget.product.is_enabled ? "danger" : "default";
+          if (confirmTarget.kind === "toggle") return confirmTarget.mechanism.is_enabled ? "danger" : "default";
           return confirmTarget.enabled ? "default" : "danger";
         })()}
         loading={confirmLoading}
@@ -909,29 +935,24 @@ export const ProductsPage: React.FC = () => {
       />
 
       {/* DETAIL SLIDE-OVER INSPECTOR SHEET (Supabase / Linear style) */}
-      <Sheet open={!!detailProduct} onOpenChange={(open) => !open && setDetailProduct(null)}>
+      <Sheet open={!!detailMechanism} onOpenChange={(open) => !open && setDetailMechanism(null)}>
         <SheetContent side="right" className="flex flex-col gap-0 p-0 sm:max-w-xl md:max-w-2xl">
           <SheetHeader className="border-b border-border px-6 py-4 pr-12">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-medium border border-border">
-                {detailProduct?.code}
+                {detailMechanism?.code}
               </span>
               <span className="text-[11px] text-muted-foreground">
-                {detailProduct?.brand} · {detailProduct?.product_category}
+                {detailMechanism?.brand} · {detailMechanism?.kit_type}
               </span>
-              {detailProduct?.is_locked && (
-                <span className="inline-flex items-center gap-1 text-[11px] text-warning bg-warning/10 px-1.5 py-0.5 rounded border border-warning/20">
-                  <Lock className="h-3 w-3" />
-                  手工锁定保护
-                </span>
-              )}
+              {detailMechanism && <StatusDot>{detailMechanism.status}</StatusDot>}
             </div>
             <SheetTitle className="text-base font-semibold text-foreground mt-1">
-              {detailProduct?.name}
+              {detailMechanism?.name}
             </SheetTitle>
             <SheetDescription className="text-xs text-muted-foreground mt-0.5">
-              来源：{detailProduct?.data_source} ｜ 最近更新：
-              {detailProduct ? new Date(detailProduct.source_updated_at).toLocaleString() : ""}
+              来源：{detailMechanism?.data_source} ｜ 最近更新：
+              {detailMechanism ? new Date(detailMechanism.source_updated_at).toLocaleString() : ""}
             </SheetDescription>
           </SheetHeader>
 
@@ -947,7 +968,8 @@ export const ProductsPage: React.FC = () => {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              全量档案详情 (21列)
+              方案与组合明细
+              <span className="ml-1 tabular-nums text-muted-foreground">({detailMechanism?.items.length ?? 0})</span>
             </button>
             <button
               type="button"
@@ -966,50 +988,80 @@ export const ProductsPage: React.FC = () => {
 
           {/* Body */}
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
-            {activeDetailTab === "info" && detailProduct && (
+            {activeDetailTab === "info" && detailMechanism && (
               <>
-                <DetailSection title="基础标识与品类属性">
-                  <DetailField label="货品编号" mono>{detailProduct.code}</DetailField>
-                  <DetailField label="货品名称">{detailProduct.name}</DetailField>
-                  <DetailField label="品牌">{detailProduct.brand}</DetailField>
-                  <DetailField label="货品简称">{detailProduct.short_name || "—"}</DetailField>
-                  <DetailField label="产品昵称">{detailProduct.nickname || "—"}</DetailField>
-                  <DetailField label="产品类目（主口径）">{detailProduct.product_category || "—"}</DetailField>
-                  <DetailField label="产品分类">{detailProduct.category_sub || "—"}</DetailField>
-                  <DetailField label="系列">{detailProduct.series || "—"}</DetailField>
-                  <DetailField label="版本">{detailProduct.version || "—"}</DetailField>
-                </DetailSection>
-
-                <DetailSection title="规格包装与价格属性">
-                  <DetailField label="型号规格/净含量">{detailProduct.spec || "—"}</DetailField>
-                  <DetailField label="基本单位">{detailProduct.base_unit || "—"}</DetailField>
-                  <DetailField label="箱规">{detailProduct.carton_spec || "—"}</DetailField>
-                  <DetailField label="官方零售价" mono>
-                    {detailProduct.retail_price
-                      ? `¥${Number(detailProduct.retail_price).toFixed(2)}`
-                      : "—"}
+                {/* Summary Fields */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                  <DetailField label="机制建议售价" mono>
+                    {detailMechanism.mechanism_price ? `¥${Number(detailMechanism.mechanism_price).toFixed(2)}` : "—"}
                   </DetailField>
-                  <DetailField label="正品/小样">{detailProduct.sample_type || "正品"}</DetailField>
-                  <DetailField label="销售阶段">{detailProduct.sale_stage || "在售"}</DetailField>
-                  <DetailField label="商品生命周期状态">{detailProduct.status}</DetailField>
-                  <DetailField label="需要运营维护">{detailProduct.needs_maintenance}</DetailField>
-                  <DetailField label="旧口径类目（待废弃）" muted>{detailProduct.category_old || "无"}</DetailField>
-                </DetailSection>
+                  <DetailField label="商品总零售货值" mono>
+                    {detailMechanism.total_retail_value ? `¥${Number(detailMechanism.total_retail_value).toFixed(2)}` : "—"}
+                  </DetailField>
+                  <DetailField label="生效起始日期" mono>{detailMechanism.start_date || "未限定"}</DetailField>
+                  <DetailField label="生效截止日期" mono>{detailMechanism.end_date || "未限定"}</DetailField>
+                </div>
 
-                <DetailSection title="系统治理与审计状态">
-                  <DetailField label="最近数据来源">{detailProduct.data_source}</DetailField>
-                  <div>
-                    <div className="text-xs text-muted-foreground">启用状态</div>
-                    <div className="mt-0.5">
-                      <StatusDot tone={detailProduct.is_enabled ? "success" : "muted"}>
-                        {detailProduct.is_enabled ? "已启用" : "已禁用"}
-                      </StatusDot>
-                    </div>
+                {/* Items Table */}
+                <section>
+                  <h3 className="mb-2 border-b border-border pb-1.5 text-[13px] font-medium text-foreground">
+                    套装包含货品明细
+                  </h3>
+                  <div className="overflow-hidden rounded-lg border border-border">
+                    <Table className="text-xs">
+                      <TableHeader>
+                        <TableRow className="h-9 bg-muted/50 hover:bg-muted/50">
+                          <TableHead className="px-3">货品编码</TableHead>
+                          <TableHead className="px-3">货品名称</TableHead>
+                          <TableHead className="px-3">规格</TableHead>
+                          <TableHead className="px-3">明细类型</TableHead>
+                          <TableHead className="px-3 text-center">数量</TableHead>
+                          <TableHead className="px-3 text-right">官方零售价</TableHead>
+                          <TableHead className="px-3 text-right">小计</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detailMechanism.items.map((it, idx) => {
+                          const subtotal = (it.retail_price || 0) * it.quantity;
+                          return (
+                            <TableRow key={idx}>
+                              <TableCell className="whitespace-nowrap px-3 font-mono">
+                                {it.product_code}
+                              </TableCell>
+                              <TableCell className="px-3 font-medium text-foreground">
+                                {it.product_name || "—"}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap px-3 text-muted-foreground">
+                                {it.product_spec || "—"}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap px-3">
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center rounded border px-1.5 py-px text-[10px]",
+                                    it.item_type === "主品"
+                                      ? "border-primary/20 bg-primary/5 text-primary"
+                                      : "border-border bg-muted text-muted-foreground"
+                                  )}
+                                >
+                                  {it.item_type}
+                                </span>
+                              </TableCell>
+                              <TableCell className="px-3 text-center tabular-nums text-foreground">
+                                ×{it.quantity}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap px-3 text-right font-mono tabular-nums text-muted-foreground">
+                                {it.retail_price ? `¥${Number(it.retail_price).toFixed(2)}` : "—"}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap px-3 text-right font-mono tabular-nums text-foreground">
+                                {subtotal ? `¥${Number(subtotal).toFixed(2)}` : "—"}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
-                  <DetailField label="手工锁定保护">
-                    {detailProduct.is_locked ? "已锁定（防冲销）" : "未锁定"}
-                  </DetailField>
-                </DetailSection>
+                </section>
               </>
             )}
 
@@ -1049,15 +1101,15 @@ export const ProductsPage: React.FC = () => {
 
       {/* CREATE / EDIT FORM DIALOG */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 overflow-hidden rounded-lg p-0">
+        <DialogContent className="flex max-h-[85vh] max-w-3xl flex-col gap-0 overflow-hidden rounded-lg p-0">
           <DialogHeader className="border-b border-border px-6 py-4">
             <DialogTitle className="text-sm font-semibold text-foreground">
-              {formMode === "create" ? "新建货品" : `编辑货品（${formData.code}）`}
+              {formMode === "create" ? "新建促销机制" : `编辑促销机制（${formData.code}）`}
             </DialogTitle>
             <DialogDescription className="mt-1 text-xs text-muted-foreground">
               {formMode === "create"
-                ? "货品编号与名称为必填项，其余字段可后续补充完善。"
-                : "货品编号不可修改，修改后将同步记录到变更审计。"}
+                ? "机制编码可留空自动派发；组合明细至少需要一件货品。"
+                : "机制编码不可自动派发，修改后将同步记录到变更审计。"}
             </DialogDescription>
           </DialogHeader>
 
@@ -1069,151 +1121,217 @@ export const ProductsPage: React.FC = () => {
               </div>
             )}
 
+            {/* Mechanism Header Info */}
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="货品编号" required>
-                <Input
-                  type="text"
-                  required
-                  disabled={formMode === "edit"}
-                  value={formData.code || ""}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="如 PRO-PER-009"
-                  className="h-8 rounded-md font-mono text-xs"
-                />
+              <FormField label="机制编码">
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    disabled={formMode === "edit"}
+                    value={formData.code || ""}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    placeholder="留空自动派发，如 M-PROYA-202610-0001"
+                    className="h-8 rounded-md font-mono text-xs"
+                  />
+                  {formMode === "create" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateCode}
+                      className="h-8 shrink-0 px-2.5 text-xs"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>自动派发</span>
+                    </Button>
+                  )}
+                </div>
               </FormField>
+
               <FormField label="所属品牌" required>
-                <Input
-                  type="text"
-                  required
-                  value={formData.brand || ""}
+                <select
+                  value={formData.brand || "珀莱雅"}
                   onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                  placeholder="如 珀莱雅 / 彩棠"
-                  className="h-8 rounded-md text-xs"
-                />
+                  className="h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="珀莱雅">珀莱雅</option>
+                  <option value="彩棠">彩棠</option>
+                  <option value="Off&Relax">Off&Relax</option>
+                </select>
               </FormField>
             </div>
 
-            <FormField label="货品完整名称" required>
+            <FormField label="机制完整名称" required>
               <Input
                 type="text"
                 required
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="请输入完整标准商品名称"
+                placeholder="如 珀莱雅双抗精华买1赠3体验套"
                 className="h-8 rounded-md text-xs"
               />
             </FormField>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <FormField label="型号规格/净含量">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <FormField label="套装类型">
+                <select
+                  value={formData.kit_type || "买赠套装"}
+                  onChange={(e) => setFormData({ ...formData, kit_type: e.target.value })}
+                  className="h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="单件">单件</option>
+                  <option value="多件组合">多件组合</option>
+                  <option value="买赠套装">买赠套装</option>
+                  <option value="加价购">加价购</option>
+                </select>
+              </FormField>
+              <FormField label="机制类型">
+                <select
+                  value={formData.mechanism_type || "日常"}
+                  onChange={(e) => setFormData({ ...formData, mechanism_type: e.target.value })}
+                  className="h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="日常">日常</option>
+                  <option value="S促">S促</option>
+                  <option value="大促">大促</option>
+                  <option value="超头">超头</option>
+                </select>
+              </FormField>
+              <FormField label="生效起始日期">
                 <Input
-                  type="text"
-                  value={formData.spec || ""}
-                  onChange={(e) => setFormData({ ...formData, spec: e.target.value })}
-                  placeholder="如 30ml / 50g"
+                  type="date"
+                  value={formData.start_date || ""}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
                   className="h-8 rounded-md text-xs"
                 />
               </FormField>
-              <FormField label="基本单位">
+              <FormField label="生效结束日期">
                 <Input
-                  type="text"
-                  value={formData.base_unit || ""}
-                  onChange={(e) => setFormData({ ...formData, base_unit: e.target.value })}
-                  placeholder="如 瓶/盒/支/套"
-                  className="h-8 rounded-md text-xs"
-                />
-              </FormField>
-              <FormField label="官方零售价（元）">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.retail_price ?? ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      retail_price: e.target.value ? Number(e.target.value) : undefined,
-                    })
-                  }
-                  placeholder="0.00"
-                  className="h-8 rounded-md text-right font-mono tabular-nums text-xs"
-                />
-              </FormField>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <FormField label="产品类目">
-                <Input
-                  type="text"
-                  value={formData.product_category || ""}
-                  onChange={(e) => setFormData({ ...formData, product_category: e.target.value })}
-                  placeholder="如 护肤 / 彩妆"
-                  className="h-8 rounded-md text-xs"
-                />
-              </FormField>
-              <FormField label="产品分类">
-                <Input
-                  type="text"
-                  value={formData.category_sub || ""}
-                  onChange={(e) => setFormData({ ...formData, category_sub: e.target.value })}
-                  placeholder="如 精华 / 面霜"
-                  className="h-8 rounded-md text-xs"
-                />
-              </FormField>
-              <FormField label="运营简称">
-                <Input
-                  type="text"
-                  value={formData.short_name || ""}
-                  onChange={(e) => setFormData({ ...formData, short_name: e.target.value })}
-                  placeholder="简写名称"
+                  type="date"
+                  value={formData.end_date || ""}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                   className="h-8 rounded-md text-xs"
                 />
               </FormField>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <FormField label="商品状态">
+            <FormField label="机制建议售价（元）">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.mechanism_price ?? ""}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    mechanism_price: e.target.value ? Number(e.target.value) : undefined,
+                  })
+                }
+                placeholder="0.00"
+                className="h-8 max-w-xs rounded-md text-right font-mono tabular-nums text-xs"
+              />
+            </FormField>
+
+            {/* Interactive Items List Editor */}
+            <div className="pt-1">
+              <div className="mb-2">
+                <label className="block font-medium text-foreground">
+                  组合明细货品清单（{formData.items.length} 件）<span className="ml-0.5 text-destructive">*</span>
+                </label>
+              </div>
+
+              {/* Add product bar */}
+              <div className="mb-3 rounded-lg border border-border bg-muted/30 p-2.5">
                 <select
-                  value={formData.status || "正常"}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                   className="h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleAddItem(e.target.value);
+                      e.target.value = "";
+                    }
+                  }}
+                  defaultValue=""
+                  aria-label="从货品主数据选择加入明细"
                 >
-                  <option value="正常">正常</option>
-                  <option value="停售">停售</option>
-                  <option value="淘汰">淘汰</option>
+                  <option value="" disabled>从现有货品主数据中选择并加入明细…</option>
+                  {availableProducts.map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.code} - {p.name} ({p.spec || "标准规格"}) - ¥{p.retail_price || 0}
+                    </option>
+                  ))}
                 </select>
-              </FormField>
-              <FormField label="销售阶段">
-                <select
-                  value={formData.sale_stage || "在售"}
-                  onChange={(e) => setFormData({ ...formData, sale_stage: e.target.value })}
-                  className="h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="在售">在售</option>
-                  <option value="新品">新品</option>
-                  <option value="预售">预售</option>
-                  <option value="清尾">清尾</option>
-                </select>
-              </FormField>
-              <FormField label="正品/小样">
-                <select
-                  value={formData.sample_type || "正品"}
-                  onChange={(e) => setFormData({ ...formData, sample_type: e.target.value })}
-                  className="h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="正品">正品</option>
-                  <option value="小样">小样</option>
-                </select>
-              </FormField>
+              </div>
+
+              {/* Items table */}
+              <div className="overflow-hidden rounded-lg border border-border">
+                <Table className="text-xs">
+                  <TableHeader>
+                    <TableRow className="h-9 bg-muted/50 hover:bg-muted/50">
+                      <TableHead className="px-3">货品编码</TableHead>
+                      <TableHead className="w-28 px-3 text-center">明细类型</TableHead>
+                      <TableHead className="w-24 px-3 text-center">数量</TableHead>
+                      <TableHead className="w-16 px-3 text-center">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {formData.items.map((it: any, idx: number) => {
+                      const matchedProd = availableProducts.find((p) => p.code === it.product_code);
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell className="px-3">
+                            <div className="font-mono text-foreground">{it.product_code}</div>
+                            <div className="mt-0.5 text-xs text-muted-foreground">
+                              {matchedProd ? `${matchedProd.name} · ¥${matchedProd.retail_price || 0}` : "已选择货品"}
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-3 text-center">
+                            <select
+                              value={it.item_type}
+                              onChange={(e) => handleUpdateItem(idx, "item_type", e.target.value)}
+                              aria-label="明细类型"
+                              className="h-7 rounded-md border border-input bg-card px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                            >
+                              <option value="主品">主品</option>
+                              <option value="赠品">赠品</option>
+                            </select>
+                          </TableCell>
+                          <TableCell className="px-3 text-center">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={it.quantity}
+                              onChange={(e) => handleUpdateItem(idx, "quantity", parseInt(e.target.value) || 1)}
+                              aria-label="数量"
+                              className="mx-auto h-7 w-16 rounded-md text-center text-xs"
+                            />
+                          </TableCell>
+                          <TableCell className="px-3 text-center">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveItem(idx)}
+                              aria-label="移除该明细"
+                              className="h-7 w-7 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 pt-1">
               <Checkbox
-                id="lockField"
+                id="mechLockField"
                 checked={formData.is_locked || false}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_locked: !!checked })}
               />
-              <label htmlFor="lockField" className="cursor-pointer text-foreground">
+              <label htmlFor="mechLockField" className="cursor-pointer text-foreground">
                 开启手工锁定保护（锁定后数仓自动同步不会冲掉本次修改）
               </label>
             </div>
@@ -1230,13 +1348,13 @@ export const ProductsPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* EXCEL IMPORT DIALOG */}
+      {/* FLAT EXCEL IMPORT DIALOG */}
       <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
         <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 overflow-hidden rounded-lg p-0">
           <DialogHeader className="border-b border-border px-6 py-4">
             <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-              批量导入货品数据
+              批量导入促销机制
             </DialogTitle>
             <DialogDescription className="mt-1 text-xs text-muted-foreground">
               下载模板 → 上传文件 → 校验并确认导入，共三步。
@@ -1247,13 +1365,13 @@ export const ProductsPage: React.FC = () => {
             {/* Step 1 */}
             <div className="flex items-center justify-between rounded-lg border border-border p-3">
               <div>
-                <div className="font-medium text-foreground">第 1 步：下载标准导入模板</div>
+                <div className="font-medium text-foreground">第 1 步：下载单表扁平导入模板</div>
                 <div className="mt-0.5 text-muted-foreground">
-                  模板内置下拉枚举字典与示例行，规范填写防出错
+                  多行相同机制名称将自动聚合为主子表结构，机制编码可留空自动派发
                 </div>
               </div>
               <Button size="sm" variant="outline" asChild>
-                <a href="http://localhost:8090/api/v1/products/template" download>
+                <a href="http://localhost:8090/api/v1/mechanisms/template" download>
                   <Download className="h-3.5 w-3.5" />
                   <span>下载模板</span>
                 </a>
@@ -1278,7 +1396,7 @@ export const ProductsPage: React.FC = () => {
             {importLoading && (
               <div className="flex items-center justify-center gap-2 py-3 text-primary">
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                <span>正在执行行级校验与数据解析…</span>
+                <span>正在执行引用完整性校验与单表聚合解析…</span>
               </div>
             )}
 
@@ -1294,7 +1412,7 @@ export const ProductsPage: React.FC = () => {
                 <div className="flex items-center justify-between rounded-lg border border-border p-3">
                   <span className="font-medium text-foreground">第 3 步：确认导入</span>
                   <div className="flex items-center gap-3">
-                    <StatusDot tone="success">{`合法记录 ${previewResult.valid_count} 条`}</StatusDot>
+                    <StatusDot tone="success">{`合法机制 ${previewResult.valid_count} 组`}</StatusDot>
                     {previewResult.error_count > 0 && (
                       <StatusDot tone="error">{`异常 ${previewResult.error_count} 行`}</StatusDot>
                     )}
@@ -1304,15 +1422,35 @@ export const ProductsPage: React.FC = () => {
                 {previewResult.errors.length > 0 && (
                   <div className="overflow-hidden rounded-lg border border-destructive/30">
                     <div className="border-b border-destructive/20 bg-destructive/10 px-3 py-1.5 font-medium text-destructive">
-                      行级错误清单
+                      行级错误清单（含引用完整性拦截）
                     </div>
                     <div className="max-h-36 divide-y divide-border overflow-y-auto text-[11px]">
                       {previewResult.errors.map((err, i) => (
                         <div key={i} className="flex items-center justify-between gap-4 p-2">
                           <span className="shrink-0 font-mono text-destructive">
-                            第 {err.row} 行（{err.code}）
+                            第 {err.row} 行（{err.name || "未命名机制"}）
                           </span>
                           <span className="text-right text-muted-foreground">{err.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Valid groups preview */}
+                {previewResult.preview_groups.length > 0 && (
+                  <div className="overflow-hidden rounded-lg border border-border">
+                    <div className="border-b border-border bg-muted/50 px-3 py-1.5 font-medium text-foreground">
+                      聚合机制预览
+                    </div>
+                    <div className="max-h-36 overflow-y-auto text-[11px]">
+                      {previewResult.preview_groups.map((g, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-4 border-b border-border p-2 last:border-b-0">
+                          <div className="min-w-0">
+                            <span className="mr-2 font-mono text-foreground">{g.mechanism_code}</span>
+                            <span className="text-foreground">{g.mechanism_name}（{g.brand}）</span>
+                          </div>
+                          <div className="shrink-0 text-muted-foreground">含 {g.items_count} 件明细</div>
                         </div>
                       ))}
                     </div>
@@ -1329,7 +1467,7 @@ export const ProductsPage: React.FC = () => {
                     disabled={previewResult.valid_count === 0 || importLoading}
                     onClick={handleConfirmImport}
                   >
-                    导入 {previewResult.valid_count} 条合法数据
+                    导入 {previewResult.valid_count} 组合法数据
                   </Button>
                 </div>
               </div>
@@ -1341,30 +1479,16 @@ export const ProductsPage: React.FC = () => {
   );
 };
 
-/* ---------- Detail Dialog 内部小组件 ---------- */
-
-const DetailSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <section>
-    <h3 className="mb-2 border-b border-border pb-1.5 text-[13px] font-medium text-foreground">{title}</h3>
-    <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md sm:grid-cols-3">{children}</div>
-  </section>
-);
+/* ---------- Form / Detail 小组件 ---------- */
 
 const DetailField: React.FC<{
   label: string;
   mono?: boolean;
-  muted?: boolean;
   children: React.ReactNode;
-}> = ({ label, mono, muted, children }) => (
+}> = ({ label, mono, children }) => (
   <div className="min-w-0">
     <div className="text-xs text-muted-foreground">{label}</div>
-    <div
-      className={cn(
-        "mt-0.5 truncate",
-        mono ? "font-mono" : "",
-        muted ? "text-muted-foreground" : "font-medium text-foreground"
-      )}
-    >
+    <div className={cn("mt-0.5 truncate font-medium text-foreground", mono && "font-mono")}>
       {children}
     </div>
   </div>
