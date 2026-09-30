@@ -131,7 +131,7 @@ export const AppLayout: React.FC = () => {
           <div className="flex items-center gap-3">
             {/* Quick Open API link */}
             <a
-              href="http://localhost:8000/docs"
+              href="http://localhost:8090/docs"
               target="_blank"
               rel="noreferrer"
               className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-blue-600 hover:bg-slate-100 transition-colors"

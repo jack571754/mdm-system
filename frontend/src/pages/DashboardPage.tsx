@@ -181,7 +181,7 @@ export const DashboardPage: React.FC = () => {
             <h3 className="font-semibold text-slate-900 text-sm mb-4">快捷开发入口</h3>
             <div className="space-y-2.5">
               <a
-                href="http://localhost:8000/docs"
+                href="http://localhost:8090/docs"
                 target="_blank"
                 rel="noreferrer"
                 className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 transition-all text-xs text-slate-800 group"
